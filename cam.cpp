@@ -43,21 +43,20 @@ std::string CameraDiso::getCameraInfos(libcamera::Camera *camera)
  * 4/ Allocate memory for the streaming (frame buffers)
  * 5/ Create requests for every frame buffer
  */
-int8_t CameraDiso::cameraStream(int8_t option)
+int8_t CameraDiso::exploitCamera(int8_t option)
 {
 	// Creating a camera manager, that will be able to access cameras
 	//std::unique_ptr<libcamera::CameraManager> cam_mng = std::make_unique<libcamera::CameraManager>();
 	cameraManager = std::make_unique<libcamera::CameraManager>();
 	cameraManager->start();
 
-	// Iterating through cameras to get the infos, but we normally have only one in the DISO
-	for (auto const &camera : cameraManager->cameras())
-		std::cout << " - " << getCameraInfos(camera.get()) << std::endl;
-
+	// Control that the camera present on the system is findable
 	if (cameraManager->cameras().empty()) {
 		std::cout << "No camera identified on the system." << std::endl;
 		cameraManager->stop();
 		return 1;
+	} else {
+		std::cout << " - " << getCameraInfos(cameraManager->cameras().get()) << std::endl;
 	}
 
 	// Selecting camera #0 as default camera

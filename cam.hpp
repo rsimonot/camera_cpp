@@ -25,3 +25,9 @@ class CameraDiso
         std::vector<std::unique_ptr<libcamera::FrameBuffer>> &buffers;
         std::vector<std::unique_ptr<libcamera::Request>> requests;
 }
+
+enum {
+    option_code_testing     = 0,
+    option_code_still       = 1,
+    option_code_stream      = 2
+}
