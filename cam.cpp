@@ -1,13 +1,16 @@
 #include "cam.hpp"
-// Some includes are missing on purpose, I wanna get the error and be obligated to look at the functions implementation before adding the libs here
 
+// Default constructor
+CameraDiso::CameraDiso() {}
+
+CameraDiso::~CameraDiso() {}
 /**
  * @brief Retrieves the camera informations - To be called by other functions of the namespace
  * 
  * @param camera => A camera acquired through a CameraManager
  * @return std::string => The infos about the camera
  */
-std::string CameraDiso::getCameraInfos(libcamera::Camera *camera)
+std::string CameraDiso::getCameraInfos(std::shared_ptr<libcamera::Camera> camera)
 {
     cameraProperties = camera->properties();
 	std::string name;
@@ -50,18 +53,19 @@ int8_t CameraDiso::exploitCamera(int8_t option)
 	cameraManager = std::make_unique<libcamera::CameraManager>();
 	cameraManager->start();
 
-	// Control that the camera present on the system is findable
-	if (cameraManager->cameras().empty()) {
-		std::cout << "No camera identified on the system." << std::endl;
-		cameraManager->stop();
-		return 1;
-	} else {
-		std::cout << " - " << getCameraInfos(cameraManager->cameras().get()) << std::endl;
-	}
-
 	// Selecting camera #0 as default camera
 	std::string cameraId = cameraManager->cameras()[0]->id();
 	camera = cameraManager->get(cameraId);
+
+	// Control that the camera present on the system is findable
+	if (cameraManager->cameras().empty()) {
+		std::cout << "ERR : No camera identified on the system." << std::endl;
+		cameraManager->stop();
+		return 1;
+	} else {
+		std::cout << " - " << getCameraInfos(camera) << std::endl;
+	}
+
 	camera->acquire();
 
 	// Generating camera configuration
@@ -70,39 +74,40 @@ int8_t CameraDiso::exploitCamera(int8_t option)
 
 	// Generating Steam configuration for the camera config
 	// Once again the first element is a proper default one for us
-	streamConfig = config->at(0);
+
+	streamConfig = std::make_unique<libcamera::StreamConfiguration>(cameraConfig->at(0));
 
 	cameraConfig->validate();		// adjunsting it so it's recognized
-	camera->configure(config.get());
+	camera->configure(cameraConfig.get());
 
 	// The images captured while streaming have to be stored in buffers
 	// Using libcamera's FrameBufferAllocator which determines sizes and types on his own
-	cameraAllocator = new libcamera::FrameBufferAllocator(camera);
+	cameraAllocator = std::make_unique<libcamera::FrameBufferAllocator>(camera);
+
+	// Retrieving the libcamera::Stream associated with the camera in use
+	stream = std::make_unique<libcamera::Stream>(*streamConfig->stream());
+
 	//  ~ Control ~
-	if (cameraAllocator->allocate(streamConfig.stream()) < 0) {
-		std::cerr << "Can't allocate buffers" << std::endl;
+	if (cameraAllocator->allocate(stream.get()) < 0) {
+		std::cerr << "ERR : Can't allocate buffers" << std::endl;
 		return 2;
 	}
 
-	// Preparing the stream, using requests on frame buffers to contain the captured images
-	stream = streamConfig.stream();
-
-	buffers = allocator->buffers(stream);
-	//std::vector<std::unique_ptr<libcamera::Request>> requests;
+	const std::vector<std::unique_ptr<libcamera::FrameBuffer>> &buffers = cameraAllocator->buffers(stream.get());
 	// Creating a request for each frame buffer, that'll be queued to the camera, which will then fill it with images
 	for (unsigned int i = 0; i < buffers.size(); ++i) {
 		std::unique_ptr<libcamera::Request> request = camera->createRequest();	// Initialize a request
 		if (!request)
 		{
-			std::cerr << "Can't create request" << std::endl;
+			std::cerr << "ERR : Can't create request" << std::endl;
 			return 3;
 		}
 
 		const std::unique_ptr<libcamera::FrameBuffer> &buffer = buffers[i];
-		int ret = request->addBuffer(stream, buffer.get());	// Adding current buffer to a request
+		int ret = request->addBuffer(stream.get(), buffer.get());	// Adding current buffer to a request
 		if (ret < 0)
 		{
-			std::cerr << "Can't set buffer for request"
+			std::cerr << "ERR : Can't set buffer for request"
 				  << std::endl;
 			return 4;
 		}
