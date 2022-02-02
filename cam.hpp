@@ -16,7 +16,7 @@ class CameraDiso
     private:
         std::string getCameraInfos(std::shared_ptr<libcamera::Camera> camera);
         std::shared_ptr<libcamera::Camera> camera;
-        libcamera::ControlList cameraProperties;
+        std::unique_ptr<libcamera::ControlList> cameraProperties;
         std::unique_ptr<libcamera::CameraManager> cameraManager;
         std::unique_ptr<libcamera::CameraConfiguration> cameraConfig;
         std::unique_ptr<libcamera::FrameBufferAllocator> cameraAllocator;

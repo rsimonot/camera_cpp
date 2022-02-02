@@ -12,10 +12,10 @@ CameraDiso::~CameraDiso() {}
  */
 std::string CameraDiso::getCameraInfos(std::shared_ptr<libcamera::Camera> camera)
 {
-    cameraProperties = camera->properties();
+    cameraProperties = std::make_unique<libcamera::ControlList>(camera->properties());
 	std::string name;
 
-	switch (cameraProperties.get(libcamera::properties::Location)) {
+	switch (cameraProperties.get()->get(libcamera::properties::Location)) {
 	case libcamera::properties::CameraLocationFront:
 		name = "Internal front camera";
 		break;
@@ -24,8 +24,8 @@ std::string CameraDiso::getCameraInfos(std::shared_ptr<libcamera::Camera> camera
 		break;
 	case libcamera::properties::CameraLocationExternal:
 		name = "External camera";
-		if (cameraProperties.contains(libcamera::properties::Model))
-			name += " '" + cameraProperties.get(libcamera::properties::Model) + "'";
+		if (cameraProperties.get()->contains(libcamera::properties::Model))
+			name += " '" + cameraProperties.get()->get(libcamera::properties::Model) + "'";
 		break;
 	}
 
