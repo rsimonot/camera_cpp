@@ -3,12 +3,65 @@
 // Default constructor
 CameraDiso::CameraDiso() {}
 
-CameraDiso::~CameraDiso() {}
+// Default destructor
+CameraDiso::~CameraDiso()
+{
+	camera->stop();
+	cameraAllocator->free(stream.get());
+	delete cameraAllocator.get();
+	camera->release();
+	camera.reset();
+	cameraManager->stop();
+}
+
+/**
+ * @brief Handles request completion events : is called when a Slot connected to the `requestComplete` Signal receives something
+ * 
+ * @param request The completed request notified on the Signal
+ */
+void CameraDiso::requestComplete(libcamera::Request *request)
+{
+	// If the request got cancelled, do nothing
+	if (request->status() == libcamera::Request::RequestCancelled)
+		return;
+	
+	// If the request was treated, the output data is in a map of Streams and Buffers
+	const libcamera::Request::BufferMap &buffers = request->buffers();
+	// Iterating through those buffers
+	for (auto bufferPair : buffers) {
+    	libcamera::FrameBuffer *buffer = bufferPair.second;
+    	const libcamera::FrameMetadata &metadata = buffer->metadata();	// retrieving metadatas for instance
+		// Displaying informations about them to trace camera activity
+		std::cout << " seq: " << std::setw(6) << std::setfill('0') << metadata.sequence << " bytesused: ";
+		unsigned int nplane = 0;
+		for (const libcamera::FrameMetadata::Plane &plane : metadata.planes())
+		{
+			std::cout << plane.bytesused;
+			if (++nplane < metadata.planes().size()) std::cout << "/";
+		}
+		std::cout << std::endl;
+
+		// Sink enables to write image data to disk ?
+		// For now there's now interractivity, it'll have to be introduced at the same time as gRPC
+		if (sink) {
+			sink = std::make_unique<FileSink>(streamNames);
+			sink->configure(*cameraConfig);
+			sink->requestProcessed.connect(this, &CameraDiso::sinkRelease);
+			sink->processRequest(request);
+		}	
+   	}
+	// case of a stream, the request and associated buffers are reused
+	if (!sink) {
+		request->reuse(libcamera::Request::ReuseBuffers);
+		camera->queueRequest(request);
+	}
+}
+
 /**
  * @brief Retrieves the camera informations - To be called by other functions of the namespace
  * 
- * @param camera => A camera acquired through a CameraManager
- * @return std::string => The infos about the camera
+ * @param camera A camera acquired through a CameraManager
+ * @return std::string name => The infos about the camera
  */
 std::string CameraDiso::getCameraInfos(std::shared_ptr<libcamera::Camera> camera)
 {
@@ -37,7 +90,7 @@ std::string CameraDiso::getCameraInfos(std::shared_ptr<libcamera::Camera> camera
 /**
  * @brief Steams a camera. A default camera will automatically be used, as there's only one for now on the system
  * 
- * @return int => Classical return value, 0 means OK
+ * @return <int> Classical return value, 0 means OK
  * 
  * Flow :
  * 1/ Camera Manager
@@ -49,7 +102,6 @@ std::string CameraDiso::getCameraInfos(std::shared_ptr<libcamera::Camera> camera
 int8_t CameraDiso::exploitCamera(int8_t option)
 {
 	// Creating a camera manager, that will be able to access cameras
-	//std::unique_ptr<libcamera::CameraManager> cam_mng = std::make_unique<libcamera::CameraManager>();
 	cameraManager = std::make_unique<libcamera::CameraManager>();
 	cameraManager->start();
 
@@ -69,7 +121,6 @@ int8_t CameraDiso::exploitCamera(int8_t option)
 	camera->acquire();
 
 	// Generating camera configuration
-	//std::unique_ptr<libcamera::CameraConfiguration> config = camera->generateConfiguration( { libcamera::StreamRole::Viewfinder } );
 	cameraConfig = camera->generateConfiguration( { libcamera::StreamRole::Viewfinder } );
 
 	// Generating Steam configuration for the camera config
@@ -79,6 +130,20 @@ int8_t CameraDiso::exploitCamera(int8_t option)
 
 	cameraConfig->validate();		// adjunsting it so it's recognized
 	camera->configure(cameraConfig.get());
+
+
+	/*	====================================
+				Preparing the sink
+		====================================*/
+	streamNames.clear();
+	// Filling the map for sink initialization
+	for (unsigned int index = 0; index < cameraConfig->size(); ++index) {
+		libcamera::StreamConfiguration &cfg = cameraConfig->at(index);
+		streamNames[cfg.stream()] = "cam" + cameraId
+					   + "-stream" + std::to_string(index);
+	}
+	/*	==================================== */
+
 
 	// The images captured while streaming have to be stored in buffers
 	// Using libcamera's FrameBufferAllocator which determines sizes and types on his own
@@ -117,7 +182,44 @@ int8_t CameraDiso::exploitCamera(int8_t option)
 		requests.push_back(std::move(request));
 	}	// After this loop we got as many <request> objets in "requests" as there were buffers created by the FrameBufferAllocator
 
-	// The camera needs now to fill our buffers
+	// Connecting a Slot to receive the Signals from the camera directly in the app
+	camera->requestCompleted.connect(this, &CameraDiso::requestComplete);
 
+	int ret;
+	// Starting the "sink" (still don't know how to translate that)
+	if (sink) {
+		ret = sink->start();
+		if (ret) {
+			std::cout << "Failed to start frame sink" << std::endl;
+			return ret;
+		}
+	}
+	// Starting the camera for real
+	ret = camera->start();
+	if (ret) {
+		std::cout << "Failed to start capture" << std::endl;
+		if (sink)
+			sink->stop();
+		return ret;
+	}
+	// Iterating through requests to assign them to the camera and then get them back in the "requestComplete" function
+	for (std::unique_ptr<libcamera::Request> &request : requests) {
+		ret = camera->queueRequest(request.get());
+		if (ret < 0) {
+			std::cerr << "Can't queue request" << std::endl;
+			camera->stop();
+			if (sink)
+				sink->stop();
+			return ret;
+		}
+	}
+
+	// Cleaning that should happen here has been moved in the destructor, safer due to smart pointers I think
 	return 0;
+}
+
+void CameraDiso::sinkRelease(libcamera::Request *request)
+{
+	request->reuse(libcamera::Request::ReuseBuffers);
+	camera->queueRequest(request);
 }

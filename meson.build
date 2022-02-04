@@ -8,6 +8,9 @@ project('DisoCamera', 'c', 'cpp',
 src_files = files([
 	'main.cpp',
 	'cam.cpp',
+	'file_sink.cpp',
+	'frame_sink.cpp',
+	'image.cpp',
 ])
 
 # Point your PKG_CONFIG_PATH environment variable to the
