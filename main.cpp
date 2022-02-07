@@ -4,8 +4,7 @@ int main (void)
 {
     CameraDiso *cam = new CameraDiso();
 
-    int8_t res = cam->exploitCamera(option_code_testing);
-    cam->~CameraDiso();
+    int res = cam->exploitCamera(option_code_testing);
 
     if (res == 0)
         return EXIT_SUCCESS;

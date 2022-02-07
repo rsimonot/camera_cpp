@@ -27,7 +27,7 @@ class CameraDiso
         std::unique_ptr<libcamera::FrameBufferAllocator> cameraAllocator;
         std::unique_ptr<libcamera::Stream> stream;
         std::map<const libcamera::Stream *, std::string> streamNames;
-        std::unique_ptr<libcamera::StreamConfiguration> streamConfig;
+        //std::unique_ptr<libcamera::StreamConfiguration> streamConfig;
         std::vector<std::unique_ptr<libcamera::Request>> requests;
         std::unique_ptr<FileSink> sink;
 };
