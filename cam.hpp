@@ -1,9 +1,11 @@
-#include <iostream>
+#include <iostream>                     // std::cout ; std::endl
 #include <string>
-#include <stdint.h>
-#include <iomanip>
+#include <stdint.h>                     // int8_t
+#include <iomanip>                      // std::setw ; std::setfill
+#include <functional>                   // std::bind
 #include <libcamera/libcamera.h>
 #include "file_sink.h"
+#include "event_loop.h"
 
 class CameraDiso
 {
@@ -18,6 +20,7 @@ class CameraDiso
     private:
         std::string getCameraInfos(std::shared_ptr<libcamera::Camera> camera);
         void requestComplete(libcamera::Request *request);
+        static void processRequest(libcamera::Request *request, CameraDiso *instance);
         void sinkRelease(libcamera::Request *request);
 
         std::shared_ptr<libcamera::Camera> camera;
@@ -30,6 +33,8 @@ class CameraDiso
         //std::unique_ptr<libcamera::StreamConfiguration> streamConfig;
         std::vector<std::unique_ptr<libcamera::Request>> requests;
         std::unique_ptr<FileSink> sink;
+
+        std::unique_ptr<EventLoop> loop;
 };
 
 enum {

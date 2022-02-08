@@ -4,27 +4,43 @@
 CameraDiso::CameraDiso() {}
 
 // Default destructor
+// Probably there's nothing to put in it as I'm using smart pointers
+// For now I prefer letting the actions on camera and cameraManager
 CameraDiso::~CameraDiso()
 {
 	camera->stop();
-	cameraAllocator->free(stream.get());
-	delete cameraAllocator.get();
 	camera->release();
 	camera.reset();
 	cameraManager->stop();
 }
 
+
+
 /**
  * @brief Handles request completion events : is called when a Slot connected to the `requestComplete` Signal receives something
  * 
- * @param request The completed request notified on the Signal
+ * @param request the completed request notified by the signal
  */
 void CameraDiso::requestComplete(libcamera::Request *request)
 {
 	std::cout << "\033[1;33m###### Entering 'requestComplete' function\033[0m" << std::endl;
+
 	// If the request got cancelled, do nothing
 	if (request->status() == libcamera::Request::RequestCancelled)
 		return;
+
+	loop->callLater(std::bind(CameraDiso::processRequest, request, this));
+}
+
+/**
+ * @brief !STATIC! Called during request completion events by the event loop
+ * 
+ * @param request the completed request notified by the signal
+ * @param instance the current CameraDiso instance, trick to manipulate <this> in a static member function
+ */
+void CameraDiso::processRequest(libcamera::Request *request, CameraDiso *instance)
+{
+	std::cout << "\033[1;33m###### Entering 'processRequest' function\033[0m" << std::endl;
 	
 	// If the request was treated, the output data is in a map of Streams and Buffers
 	const libcamera::Request::BufferMap &buffers = request->buffers();
@@ -44,17 +60,17 @@ void CameraDiso::requestComplete(libcamera::Request *request)
 
 		// Sink enables to write image data to disk ?
 		// For now there's now interractivity, it'll have to be introduced at the same time as gRPC
-		if (sink) {
-			sink = std::make_unique<FileSink>(streamNames);
-			sink->configure(*cameraConfig.get());
-			sink->requestProcessed.connect(this, &CameraDiso::sinkRelease);
-			sink->processRequest(request);
+		if (instance->sink) {
+			instance->sink = std::make_unique<FileSink>(instance->streamNames);
+			instance->sink->configure(*instance->cameraConfig.get());
+			instance->sink->requestProcessed.connect(instance, &CameraDiso::sinkRelease);
+			instance->sink->processRequest(request);
 		}	
    	}
 	// case of a stream, the request and associated buffers are reused
-	if (!sink) {
+	if (!instance->sink) {
 		request->reuse(libcamera::Request::ReuseBuffers);
-		camera->queueRequest(request);
+		instance->camera->queueRequest(request);
 	}
 }
 
@@ -199,17 +215,18 @@ int8_t CameraDiso::exploitCamera(int8_t option)
 		std::cout << "\033[1;35m###### Sink started\033[0m" << std::endl;
 		if (ret) {
 			std::cout << "Failed to start frame sink" << std::endl;
-			return ret;
+			return 5;
 		}
 	}
 	// Starting the camera for real
 	ret = camera->start();
-	std::cout << "\033[1;35m###### Camera started\033[0m" << std::endl;
 	if (ret) {
 		std::cout << "Failed to start capture" << std::endl;
 		if (sink)
 			sink->stop();
-		return ret;
+		return 6;
+	} else {
+		std::cout << "\033[1;35m###### Camera started\033[0m" << std::endl;
 	}
 	// Iterating through requests to assign them to the camera and then get them back in the "requestComplete" function
 	for (std::unique_ptr<libcamera::Request> &request : requests) {
@@ -220,9 +237,14 @@ int8_t CameraDiso::exploitCamera(int8_t option)
 			camera->stop();
 			if (sink)
 				sink->stop();
-			return ret;
+			return 7;
 		}
 	}
+
+	loop->timeout(3);	// Preparing to capture for 3 seconds
+	std::cout << "\033[1;35m###### Loop Timeout OK\033[0m" << std::endl;
+	ret = loop->exec();
+	std::cout << "\033[1;33m###### Capture exited with status : \033[0m" << ret << std::endl;
 
 	std::cout << "\033[1;35m###### All work done !\033[0m" << std::endl;
 	// Cleaning that should happen here has been moved in the destructor, safer due to smart pointers I think

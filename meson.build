@@ -11,6 +11,7 @@ src_files = files([
 	'file_sink.cpp',
 	'frame_sink.cpp',
 	'image.cpp',
+	'event_loop.cpp',
 ])
 
 # Point your PKG_CONFIG_PATH environment variable to the
