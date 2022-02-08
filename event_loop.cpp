@@ -32,7 +32,6 @@ EventLoop::~EventLoop()
 
 int EventLoop::exec()
 {
-	std::cout << "\033[1;33m###### Entering 'EventLoop::exec' function\033[0m" << std::endl;
 	exitCode_ = -1;
 	exit_.store(false, std::memory_order_release);
 
@@ -65,7 +64,6 @@ void EventLoop::timeoutTriggered(int fd, short event, void *arg)
 
 void EventLoop::timeout(unsigned int sec)
 {
-	std::cout << "\033[1;33m###### Entering 'EventLoop::timeout' function\033[0m" << std::endl;
 	struct event *ev;
 	struct timeval tv;
 
@@ -77,7 +75,6 @@ void EventLoop::timeout(unsigned int sec)
 
 void EventLoop::callLater(const std::function<void()> &func)
 {
-	std::cout << "\033[1;33m###### Entering 'EventLoop::callLater' function\033[0m" << std::endl;
 	{
 		std::unique_lock<std::mutex> locker(lock_);
 		calls_.push_back(func);

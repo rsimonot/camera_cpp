@@ -23,13 +23,13 @@ CameraDiso::~CameraDiso()
  */
 void CameraDiso::requestComplete(libcamera::Request *request)
 {
-	std::cout << "\033[1;33m###### Entering 'requestComplete' function\033[0m" << std::endl;
+	//std::cout << "\033[1;33m###### Entering 'requestComplete' function\033[0m" << std::endl;
 
 	// If the request got cancelled, do nothing
 	if (request->status() == libcamera::Request::RequestCancelled)
 		return;
 
-	loop->callLater(std::bind(CameraDiso::processRequest, request, this));
+	loop.callLater(std::bind(CameraDiso::processRequest, request, this));
 }
 
 /**
@@ -40,7 +40,7 @@ void CameraDiso::requestComplete(libcamera::Request *request)
  */
 void CameraDiso::processRequest(libcamera::Request *request, CameraDiso *instance)
 {
-	std::cout << "\033[1;33m###### Entering 'processRequest' function\033[0m" << std::endl;
+	//std::cout << "\033[1;33m###### Entering 'processRequest' function\033[0m" << std::endl;
 	
 	// If the request was treated, the output data is in a map of Streams and Buffers
 	const libcamera::Request::BufferMap &buffers = request->buffers();
@@ -241,12 +241,13 @@ int8_t CameraDiso::exploitCamera(int8_t option)
 		}
 	}
 
-	loop->timeout(3);	// Preparing to capture for 3 seconds
+	loop.timeout(3);	// Preparing to capture for 3 seconds
 	std::cout << "\033[1;35m###### Loop Timeout OK\033[0m" << std::endl;
-	ret = loop->exec();
+	ret = loop.exec();
 	std::cout << "\033[1;33m###### Capture exited with status : \033[0m" << ret << std::endl;
 
 	std::cout << "\033[1;35m###### All work done !\033[0m" << std::endl;
+	
 	// Cleaning that should happen here has been moved in the destructor, safer due to smart pointers I think
 	return 0;
 }

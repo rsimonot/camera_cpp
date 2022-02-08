@@ -34,7 +34,7 @@ class CameraDiso
         std::vector<std::unique_ptr<libcamera::Request>> requests;
         std::unique_ptr<FileSink> sink;
 
-        std::unique_ptr<EventLoop> loop;
+        EventLoop loop;
 };
 
 enum {
