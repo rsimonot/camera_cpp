@@ -71,8 +71,11 @@ void FileSink::writeBuffer(const Stream *stream, FrameBuffer *buffer)
 	pos = filename.find_first_of('#');
 	if (pos != std::string::npos) {
 		std::stringstream ss;
+		/*
 		ss << streamNames_[stream] << "-" << std::setw(6)
 		   << std::setfill('0') << buffer->metadata().sequence;
+		*/
+		ss << "sink_test_" << std::setw(6) << std::setfill('0') << buffer->metadata().sequence;
 		filename.replace(pos, 1, ss.str());
 	}
 
@@ -92,12 +95,15 @@ void FileSink::writeBuffer(const Stream *stream, FrameBuffer *buffer)
 		const FrameMetadata::Plane &meta = buffer->metadata().planes()[i];
 
 		Span<uint8_t> data = image->data(i);
+		std::cout << "\033[1;33m###### FileSink::writeBuffer -> <data> OK\033[0m" << std::endl;
 		unsigned int length = std::min<unsigned int>(meta.bytesused, data.size());
+		std::cout << "\033[1;33m###### FileSink::writeBuffer -> <data> length : \033[0m" << length << std::endl;
 
 		if (meta.bytesused > data.size())
 			std::cerr << "payload size " << meta.bytesused
 				  << " larger than plane size " << data.size()
 				  << std::endl;
+		std::cout << "\033[1;33m###### FileSink::writeBuffer -> Beginning writting\033[0m" << std::endl;
 
 		ret = ::write(fd, data.data(), length);
 		if (ret < 0) {
@@ -111,7 +117,9 @@ void FileSink::writeBuffer(const Stream *stream, FrameBuffer *buffer)
 				  << length << std::endl;
 			break;
 		}
-	}
+		std::cout << "\033[1;33m###### FileSink::writeBuffer -> Image Data written in file : \033[0m" << filename << std::endl;
 
+	}
+	std::cout << "\033[1;33m###### FileSink::writeBuffer -> Image treatment ended\033[0m" << std::endl;
 	close(fd);
 }

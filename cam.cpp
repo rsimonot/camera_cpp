@@ -60,8 +60,8 @@ void CameraDiso::processRequest(libcamera::Request *request, CameraDiso *instanc
 
 		// Sink enables to write image data to disk ?
 		// For now there's now interractivity, it'll have to be introduced at the same time as gRPC
-		if (instance->sink) {
-			instance->sink = std::make_unique<FileSink>(instance->streamNames);
+		if (instance->option == option_code_still) {
+			instance->sink = std::make_unique<FileSink>(instance->streamNames, "test/");
 			instance->sink->configure(*instance->cameraConfig.get());
 			instance->sink->requestProcessed.connect(instance, &CameraDiso::sinkRelease);
 			instance->sink->processRequest(request);
@@ -82,6 +82,7 @@ void CameraDiso::processRequest(libcamera::Request *request, CameraDiso *instanc
  */
 std::string CameraDiso::getCameraInfos(std::shared_ptr<libcamera::Camera> camera)
 {
+	std::cout << "\033[1;35m###### Camera Infos >>> \033[0m";
     cameraProperties = std::make_unique<libcamera::ControlList>(camera->properties());
 	std::string name;
 
@@ -118,6 +119,7 @@ std::string CameraDiso::getCameraInfos(std::shared_ptr<libcamera::Camera> camera
  */
 int8_t CameraDiso::exploitCamera(int8_t option)
 {
+	this->option = option;
 	// Creating a camera manager, that will be able to access cameras
 	cameraManager = std::make_unique<libcamera::CameraManager>();
 	cameraManager->start();
@@ -140,8 +142,12 @@ int8_t CameraDiso::exploitCamera(int8_t option)
 	std::cout << "\033[1;35m###### Camera acquired\033[0m" << std::endl;
 
 	// Generating camera configuration
-	cameraConfig = camera->generateConfiguration( { libcamera::StreamRole::Viewfinder } );
+	cameraConfig = camera->generateConfiguration( { libcamera::StreamRole::StillCapture } );
 
+	cameraConfig->at(0).pixelFormat = libcamera::formats::YUV420;
+	cameraConfig->at(0).size.width = 800;
+	cameraConfig->at(0).size.height = 600;
+	cameraConfig->at(0).colorSpace = libcamera::ColorSpace::Jpeg;	// works eventhough VS Code is doesn't recognize it
 	cameraConfig->validate();		// adjunsting it so it's recognized
 	camera->configure(cameraConfig.get());
 	std::cout << "\033[1;35m###### Camera configured\033[0m" << std::endl;
