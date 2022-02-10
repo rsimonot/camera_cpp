@@ -33,6 +33,66 @@ void CameraDiso::requestComplete(libcamera::Request *request)
 }
 
 /**
+ * @brief Constructs a JPEG buffer from camera frame metadata
+ * 
+ * @param metadata 
+ * @return uint8_t* 
+ */
+void CameraDiso::make_jpeg(const libcamera::FrameMetadata *metadata)
+{
+	struct jpeg_compress_struct cinfo;
+	struct jpeg_error_mgr jerr;
+
+	cinfo.err = jpeg_std_error(&jerr);
+	jpeg_create_compress(&cinfo);
+
+	cinfo.image_width = cameraConfig->at(0).size.width;
+	cinfo.image_height = cameraConfig->at(0).size.height;
+	cinfo.input_components = 3;
+	cinfo.in_color_space = JCS_YCbCr;
+	cinfo.restart_interval = 0;	// Default in LibCamera-Apps::StillOptions
+
+	jpeg_set_defaults(&cinfo);
+	cinfo.raw_data_in = TRUE;
+	//jpeg_set_quality(&cinfo, quality, TRUE);	// In case it's needed, default is 93 in LibCamera-Apps::StillOptions
+	jpeg_buffer = NULL;
+	jpeg_len = 0;
+	jpeg_mem_dest(&cinfo, &jpeg_buffer, &jpeg_len);
+	jpeg_start_compress(&cinfo, TRUE);
+
+	uint8_t* input = (uint8_t*)metadata->planes().data();
+	unsigned int height = stream->configuration().size.height;
+	int stride = stream->configuration().stride;
+	int stride2 = stride / 2;
+	uint8_t *Y = (uint8_t *)input;
+	uint8_t *U = (uint8_t *)Y + stride * height;
+	uint8_t *V = (uint8_t *)U + stride2 * (height / 2);
+	uint8_t *Y_max = U - stride;
+	uint8_t *U_max = V - stride2;
+	uint8_t *V_max = U_max + stride2 * (height / 2);
+
+	JSAMPROW y_rows[16];
+	JSAMPROW u_rows[8];
+	JSAMPROW v_rows[8];
+
+	for (uint8_t *Y_row = Y, *U_row = U, *V_row = V; cinfo.next_scanline < height;)
+	{
+		for (int i = 0; i < 16; i++, Y_row += stride)
+			y_rows[i] = std::min(Y_row, Y_max);
+		for (int i = 0; i < 8; i++, U_row += stride2, V_row += stride2)
+			u_rows[i] = std::min(U_row, U_max), v_rows[i] = std::min(V_row, V_max);
+
+		JSAMPARRAY rows[] = { y_rows, u_rows, v_rows };
+		jpeg_write_raw_data(&cinfo, rows, 16);
+	}
+
+	jpeg_finish_compress(&cinfo);
+	jpeg_destroy_compress(&cinfo);
+
+	//jpeg_buffer = &buffer;
+}
+
+/**
  * @brief !STATIC! Called during request completion events by the event loop
  * 
  * @param request the completed request notified by the signal
@@ -60,15 +120,26 @@ void CameraDiso::processRequest(libcamera::Request *request, CameraDiso *instanc
 
 		// Sink enables to write image data to disk ?
 		// For now there's now interractivity, it'll have to be introduced at the same time as gRPC
-		if (instance->option == option_code_still) {
+		if (instance->option == option_code_sink) {
 			instance->sink = std::make_unique<FileSink>(instance->streamNames, "test/");
 			instance->sink->configure(*instance->cameraConfig.get());
 			instance->sink->requestProcessed.connect(instance, &CameraDiso::sinkRelease);
 			instance->sink->processRequest(request);
-		}	
+		}
+		if (instance->option == option_code_still) {
+			std::string filename = "savejpeg_test_#";
+			std::size_t pos = filename.find_first_of('#');
+			std::stringstream ss;
+			ss << metadata.timestamp << "--" << std::setw(6) << std::setfill('0') << metadata.sequence << ".jpg";
+			filename.replace(pos, 1, ss.str());
+			auto f = fopen(filename.c_str(), "w");
+			instance->make_jpeg(&metadata);
+			fwrite(instance->jpeg_buffer, sizeof(uint8_t), 1, f);
+			fclose(f);
+		}
    	}
 	// case of a stream, the request and associated buffers are reused
-	if (!instance->sink) {
+	if (instance->option == option_code_stream) {
 		request->reuse(libcamera::Request::ReuseBuffers);
 		instance->camera->queueRequest(request);
 	}
@@ -147,7 +218,7 @@ int8_t CameraDiso::exploitCamera(int8_t option)
 	cameraConfig->at(0).pixelFormat = libcamera::formats::YUV420;
 	cameraConfig->at(0).size.width = 800;
 	cameraConfig->at(0).size.height = 600;
-	cameraConfig->at(0).colorSpace = libcamera::ColorSpace::Jpeg;	// works eventhough VS Code is doesn't recognize it
+	cameraConfig->at(0).colorSpace = libcamera::ColorSpace::Jpeg;	// works eventhough VS Code doesn't recognize it
 	cameraConfig->validate();		// adjunsting it so it's recognized
 	camera->configure(cameraConfig.get());
 	std::cout << "\033[1;35m###### Camera configured\033[0m" << std::endl;
@@ -247,7 +318,7 @@ int8_t CameraDiso::exploitCamera(int8_t option)
 		}
 	}
 
-	loop.timeout(3);	// Preparing to capture for 3 seconds
+	loop.timeout(1);	// Preparing to capture for 1 second
 	std::cout << "\033[1;35m###### Loop Timeout OK\033[0m" << std::endl;
 	ret = loop.exec();
 	std::cout << "\033[1;33m###### Capture exited with status : \033[0m" << ret << std::endl;

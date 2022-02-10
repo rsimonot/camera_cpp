@@ -4,6 +4,7 @@
 #include <iomanip>                      // std::setw ; std::setfill
 #include <functional>                   // std::bind
 #include <libcamera/libcamera.h>
+#include <jpeglib.h>
 #include "file_sink.h"
 #include "event_loop.h"
 
@@ -22,6 +23,7 @@ class CameraDiso
         void requestComplete(libcamera::Request *request);
         static void processRequest(libcamera::Request *request, CameraDiso *instance);
         void sinkRelease(libcamera::Request *request);
+        void make_jpeg(const libcamera::FrameMetadata *metadata);
 
         std::shared_ptr<libcamera::Camera> camera;
         std::unique_ptr<libcamera::ControlList> cameraProperties;
@@ -35,10 +37,13 @@ class CameraDiso
         std::unique_ptr<FileSink> sink;
 
         EventLoop loop;
+        uint8_t* jpeg_buffer;
+        unsigned long jpeg_len;
 };
 
 enum {
     option_code_testing     = 0,
     option_code_still       = 1,
-    option_code_stream      = 2
+    option_code_stream      = 2,
+    option_code_sink        = 3
 };
