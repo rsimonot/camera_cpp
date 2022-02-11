@@ -50,27 +50,27 @@ void CameraDiso::make_jpeg(const libcamera::FrameMetadata *metadata)
 	cinfo.image_height = cameraConfig->at(0).size.height;
 	cinfo.input_components = 3;
 	cinfo.in_color_space = JCS_YCbCr;
-	cinfo.restart_interval = 0;	// Default in LibCamera-Apps::StillOptions
 
 	jpeg_set_defaults(&cinfo);
 	cinfo.raw_data_in = TRUE;
-	//jpeg_set_quality(&cinfo, quality, TRUE);	// In case it's needed, default is 93 in LibCamera-Apps::StillOptions
+	jpeg_set_quality(&cinfo, 92, TRUE); 
 	jpeg_buffer = NULL;
 	jpeg_len = 0;
 	jpeg_mem_dest(&cinfo, &jpeg_buffer, &jpeg_len);
 	jpeg_start_compress(&cinfo, TRUE);
 
 	uint8_t* input = (uint8_t*)metadata->planes().data();
-	unsigned int height = stream->configuration().size.height;
-	int stride = stream->configuration().stride;
+	unsigned int height = cameraConfig->at(0).size.height;
+	int stride = cameraConfig->at(0).stride;
 	int stride2 = stride / 2;
+	std::cout << "\033[1;33m###### starting calculs\033[0m" << std::endl;
 	uint8_t *Y = (uint8_t *)input;
 	uint8_t *U = (uint8_t *)Y + stride * height;
 	uint8_t *V = (uint8_t *)U + stride2 * (height / 2);
 	uint8_t *Y_max = U - stride;
 	uint8_t *U_max = V - stride2;
 	uint8_t *V_max = U_max + stride2 * (height / 2);
-
+	std::cout << "\033[1;33m###### calculs passed\033[0m" << std::endl;
 	JSAMPROW y_rows[16];
 	JSAMPROW u_rows[8];
 	JSAMPROW v_rows[8];
@@ -83,12 +83,13 @@ void CameraDiso::make_jpeg(const libcamera::FrameMetadata *metadata)
 			u_rows[i] = std::min(U_row, U_max), v_rows[i] = std::min(V_row, V_max);
 
 		JSAMPARRAY rows[] = { y_rows, u_rows, v_rows };
+		std::cout << "\033[1;33m###### About to <write_raw_data> \033[0m" << std::endl;
 		jpeg_write_raw_data(&cinfo, rows, 16);
+		std::cout << "\033[1;33m###### write_raw_data passed\033[0m" << std::endl;
 	}
-
 	jpeg_finish_compress(&cinfo);
 	jpeg_destroy_compress(&cinfo);
-
+	std::cout << "\033[1;33m###### finished make_jpeg\033[0m" << std::endl;
 	//jpeg_buffer = &buffer;
 }
 
@@ -218,6 +219,7 @@ int8_t CameraDiso::exploitCamera(int8_t option)
 	cameraConfig->at(0).pixelFormat = libcamera::formats::YUV420;
 	cameraConfig->at(0).size.width = 800;
 	cameraConfig->at(0).size.height = 600;
+	//cameraConfig->at(0).stride = 123;		// test, meaningless value
 	cameraConfig->at(0).colorSpace = libcamera::ColorSpace::Jpeg;	// works eventhough VS Code doesn't recognize it
 	cameraConfig->validate();		// adjunsting it so it's recognized
 	camera->configure(cameraConfig.get());

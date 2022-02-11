@@ -19,6 +19,7 @@ src_files = files([
 deps = [
       dependency('libcamera', required : true),
       dependency('libevent_pthreads'),
+	  dependency('libjpeg'),
 ]
 
 cpp_arguments = [ '-Wno-unused-parameter', ]

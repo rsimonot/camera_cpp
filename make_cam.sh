@@ -27,7 +27,7 @@ if [ $? -eq 0 ]; then
         echo -e "${BLUE}>>> Eveything ${GREEN}OK${BLUE} !"
         echo -e "${BLUE}>>> You can start the app using : [[ ${PURPLE}./build/disocamera${BLUE} ]]  =)"
     else
-        echo -e "${BLUE}>>> Compilation ${RED}PROBLEM${BLUE}, take a look at Ninja logs."
+        echo -e "${BLUE}>>> Compilation ${RED}FAILED${BLUE}, take a look at Ninja logs."
     fi
 else
     echo -e "${BLUE}>>> Build ${RED}PROBLEM${BLUE}, take a look at Meson logs."
